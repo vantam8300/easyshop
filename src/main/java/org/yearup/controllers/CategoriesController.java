@@ -36,10 +36,15 @@ public class CategoriesController
     }
 
     @GetMapping("{id}")
-    public Category getById(@PathVariable int id)
+    public ResponseEntity<Category> getById(@PathVariable int id)
     {
         // get the category by id
-        return categoryDao.getById(id);
+
+        Category categoryFound = categoryDao.getById(id);
+        if (categoryFound == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(categoryFound);
     }
 
     // the url to return all products in category 1 would look like this
@@ -81,14 +86,25 @@ public class CategoriesController
         }
     }
 
-
     // add annotation to call this method for a DELETE action - the url path must include the categoryId
     // add annotation to ensure that only an ADMIN can call this function
     @DeleteMapping("{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public void deleteCategory(@PathVariable int id)
+    public ResponseEntity<Void> deleteCategory(@PathVariable int id)
     {
-        categoryDao.delete(id);
-        // delete the category by id
+        try
+        {
+            var category = categoryDao.getById(id);
+
+            if(category == null)
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+
+            categoryDao.delete(id);
+            return ResponseEntity.noContent().build();
+        }
+        catch(Exception ex)
+        {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Oops... our bad.");
+        }
     }
 }
