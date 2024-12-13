@@ -47,7 +47,6 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
     @Override
     public Category getById(int categoryId)
     {
-        Category category = new Category();
 
         String sql = "SELECT * FROM categories " +
                 " WHERE category_id = ? ";
