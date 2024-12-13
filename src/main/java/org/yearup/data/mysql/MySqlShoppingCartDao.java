@@ -90,19 +90,17 @@ public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDa
                 statement.setInt(2, productId);
                 statement.setInt(3, 1);
 
-                int rowsAffected = statement.executeUpdate();
+                statement.executeUpdate();
 
-                if (rowsAffected > 0) {
-
-                    return getByUserId(userId);
-                }
             }
             catch (SQLException e)
             {
+                e.printStackTrace();
                 throw new RuntimeException(e);
             }
         }
-        return null;
+        return getByUserId(userId);
+
     }
 
     @Override
@@ -128,7 +126,7 @@ public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDa
     }
 
     @Override
-    public void deleteCart(int userId) {
+    public ShoppingCart deleteCart(int userId) {
         String sql = "DELETE FROM shopping_cart " +
                 " WHERE user_id = ?;";
 
@@ -138,6 +136,7 @@ public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDa
             statement.setInt(1, userId);
 
             statement.executeUpdate();
+            return new ShoppingCart();
         }
         catch (SQLException e)
         {
