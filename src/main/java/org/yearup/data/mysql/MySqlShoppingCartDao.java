@@ -12,8 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+
 
 @Component
 public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDao {
@@ -104,7 +103,7 @@ public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDa
     }
 
     @Override
-    public void updateItem(int userId, int productId, ShoppingCartItem shoppingCartItem) {
+    public ShoppingCart updateItem(int userId, int productId, ShoppingCartItem shoppingCartItem) {
         String sql = "UPDATE shopping_cart" +
                 " SET quantity = ? " +
                 " WHERE product_id = ? and user_id = ?;";
@@ -123,6 +122,7 @@ public class MySqlShoppingCartDao extends MySqlDaoBase implements ShoppingCartDa
             e.printStackTrace();
             throw new RuntimeException(e);
         }
+        return getByUserId(userId);
     }
 
     @Override

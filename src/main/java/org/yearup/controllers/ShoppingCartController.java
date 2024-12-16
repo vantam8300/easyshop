@@ -84,7 +84,7 @@ public class ShoppingCartController
     // https://localhost:8080/cart/products/15 (15 is the productId to be updated)
     // the BODY should be a ShoppingCartItem - quantity is the only value that will be updated
     @PutMapping("products/{productId}")
-    public void updateItem(Principal principal, @PathVariable int productId, @RequestBody ShoppingCartItem shoppingCartItem) {
+    public ShoppingCart updateItem(Principal principal, @PathVariable int productId, @RequestBody ShoppingCartItem shoppingCartItem) {
         try
         {
             // get the currently logged in username
@@ -93,7 +93,7 @@ public class ShoppingCartController
             User user = userDao.getByUserName(userName);
             int userId = user.getId();
 
-            shoppingCartDao.updateItem(userId, productId, shoppingCartItem);
+            return shoppingCartDao.updateItem(userId, productId, shoppingCartItem);
         }
         catch(Exception ex)
         {
