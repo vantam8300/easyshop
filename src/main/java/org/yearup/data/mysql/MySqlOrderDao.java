@@ -1,20 +1,30 @@
 package org.yearup.data.mysql;
 
 
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 import org.yearup.data.OrderDao;
 import org.yearup.models.Order;
+import org.yearup.models.OrderLineItem;
 import org.yearup.models.Profile;
 
+import javax.mail.internet.MimeMessage;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class MySqlOrderDao  extends MySqlDaoBase implements OrderDao {
-    public MySqlOrderDao(DataSource dataSource) {
+
+    private final JavaMailSender mailSender;
+
+    public MySqlOrderDao(DataSource dataSource, JavaMailSender mailSender) {
         super(dataSource);
+        this.mailSender = mailSender;
     }
 
     @Override
@@ -77,7 +87,14 @@ public class MySqlOrderDao  extends MySqlDaoBase implements OrderDao {
 
                         addOrderLineItem(userId, orderId);
                         // get the newly inserted order
-                        return getById(orderId);
+                        Order newOrder = getById(orderId);
+
+                        // Retrieve order details (line items)
+                        List<OrderLineItem> orderDetails = getOrderDetails(orderId);
+
+                        sendOrderConfirmationEmail(profile.getEmail(), newOrder, orderDetails);
+
+                        return newOrder;
                     }
 
 
@@ -100,7 +117,7 @@ public class MySqlOrderDao  extends MySqlDaoBase implements OrderDao {
 
             statement.setInt(1, userId);
 
-            try(ResultSet row = statement.executeQuery();) {
+            try(ResultSet row = statement.executeQuery()) {
 
                 while (row.next())
                 {
@@ -124,6 +141,87 @@ public class MySqlOrderDao  extends MySqlDaoBase implements OrderDao {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
+    }
+
+    private List<OrderLineItem> getOrderDetails(int orderId) {
+        List<OrderLineItem> orderDetails = new ArrayList<>();
+        String sql = "SELECT p.name, oli.quantity, oli.sales_price, oli.order_line_item_id, oli.product_id " +
+                "FROM order_line_items oli " +
+                "JOIN products p ON oli.product_id = p.product_id " +
+                "WHERE oli.order_id = ?";
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, orderId);
+            try (ResultSet row = statement.executeQuery()) {
+                while (row.next()) {
+                    int orderLineItemId = row.getInt("order_line_item_id");
+                    int productId = row.getInt("product_id");
+                    String productName = row.getString("name");
+                    int quantity = row.getInt("quantity");
+                    BigDecimal price = row.getBigDecimal("sales_price");
+                    OrderLineItem orderLineItem = new OrderLineItem(orderLineItemId, orderId, productId, productName, price, quantity);
+                    orderDetails.add(orderLineItem);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to fetch order details.", e);
+        }
+
+        return orderDetails;
+    }
+
+    private BigDecimal calculateTotalCost(List<OrderLineItem> orderDetails) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderLineItem item : orderDetails) {
+            total = item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+        }
+        return total;
+    }
+
+    private void sendOrderConfirmationEmail(String toEmail, Order order, List<OrderLineItem> orderDetail) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+
+            helper.setTo(toEmail);
+            helper.setSubject("Order Confirmation - Order #" + order.getOrderId());
+            helper.setText(buildEmailContent(order, orderDetail), true);
+
+            mailSender.send(message);
+            System.out.println("Email sent successfully to " + toEmail);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to send email.", e);
+        }
+    }
+
+    private String buildEmailContent(Order order, List<OrderLineItem> orderDetail) {
+        StringBuilder content = new StringBuilder();
+
+        content.append("<h1>Thank you for your order!</h1>");
+
+        content.append("<p>Your order ID is: <strong>").append(order.getOrderId()).append("</strong></p>");
+
+        content.append("<p>Order Date: ").append(order.getDate()).append("</p>");
+
+        content.append("<p>Shipping Address:</p>");
+        content.append("<p>").append(order.getAddress()).append(", ").append(order.getCity())
+                .append(", ").append(order.getState()).append(" ").append(order.getZip()).append("</p>");
+
+        content.append("<h2>Order Details:</h2>");
+        content.append("<ul>");
+        for (OrderLineItem item : orderDetail) {
+            content.append("<li>").append(item).append("</li>");
+        }
+        content.append("</ul>");
+
+        content.append("<h2>Total: $").append(calculateTotalCost(orderDetail)).append(" </h2>");
+
+        content.append("<p><strong>We appreciate your business!</strong></p>");
+        return content.toString();
     }
 
     protected static Profile mapRowProfile(ResultSet row) throws SQLException
